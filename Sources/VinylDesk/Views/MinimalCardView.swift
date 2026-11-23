@@ -5,7 +5,7 @@ struct MinimalCardView: View {
     let bridge: AppleMusicBridge
     let settings: AppSettings
     let dragSession: WindowDragSession
-    let onToggleMode: () -> Void
+    let onSelectMode: (DisplayMode) -> Void
 
     @State private var isHovered: Bool = false
     @State private var isDraggingBar: Bool = false
@@ -40,15 +40,31 @@ struct MinimalCardView: View {
                         )
 
                         if isHovered {
-                            Button(action: onToggleMode) {
-                                Image(systemName: "opticaldisc")
-                                    .font(.system(size: 12 * scale, weight: .medium))
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: 20 * scale, height: 20 * scale)
-                                    .contentShape(Rectangle())
+                            HStack(spacing: 4 * scale) {
+                                Button {
+                                    onSelectMode(.vinyl)
+                                } label: {
+                                    Image(systemName: "opticaldisc")
+                                        .font(.system(size: 11.5 * scale, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 20 * scale, height: 20 * scale)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .help("切换至黑胶唱片摆件")
+
+                                Button {
+                                    onSelectMode(.dynamicIsland)
+                                } label: {
+                                    Image(systemName: "capsule.tophalf.filled")
+                                        .font(.system(size: 11.5 * scale, weight: .medium))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 20 * scale, height: 20 * scale)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .help("切换至灵动岛")
                             }
-                            .buttonStyle(.plain)
-                            .help("切换至黑胶唱片摆件")
                             .transition(.opacity)
                         }
                     }

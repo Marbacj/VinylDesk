@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import SwiftUI
 
 private final class VinylPanel: NSPanel {
@@ -9,6 +10,16 @@ private final class VinylPanel: NSPanel {
 private final class FirstMouseHostingView<Content: View>: NSHostingView<Content> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
         true
+    }
+}
+
+@MainActor
+@Observable
+public final class NotchMetricsStore {
+    public var metrics: ScreenNotchMetrics = .current()
+
+    public func refresh() {
+        metrics = .current()
     }
 }
 
@@ -27,7 +38,7 @@ public final class WindowDragSession {
     }
 
     public func handleDragChanged() {
-        guard !settings.isPositionLocked, let panel else { return }
+        guard settings.displayMode != .dynamicIsland, !settings.isPositionLocked, let panel else { return }
         let currentMouse = NSEvent.mouseLocation
 
         if !isDragging {
@@ -56,16 +67,23 @@ public final class FloatingPanelController: NSObject, NSWindowDelegate {
     private let bridge: AppleMusicBridge
     private let panel: VinylPanel
     private let dragSession: WindowDragSession
+    private let notchStore = NotchMetricsStore()
     private var hostingView: FirstMouseHostingView<WidgetRootView>?
 
     private var isProgrammaticFrameUpdate: Bool = false
     private var isCurrentlyShown: Bool = false
     private var visibilityGeneration: Int = 0
-    private var lastContentSize: CGSize = CGSize(width: 280, height: 200)
+    private var lastDisplayMode: DisplayMode
+    private var lastDesktopContentSize: CGSize = CGSize(width: 280, height: 200)
+
+    private var isDynamicIslandExpanded: Bool = false
+    private var islandShrinkWorkItem: DispatchWorkItem?
+    private var screenObserver: NSObjectProtocol?
 
     public init(settings: AppSettings, bridge: AppleMusicBridge) {
         self.settings = settings
         self.bridge = bridge
+        self.lastDisplayMode = settings.displayMode
 
         let initialRect = NSRect(x: 80, y: 80, width: 280, height: 200)
         self.panel = VinylPanel(
@@ -80,8 +98,14 @@ public final class FloatingPanelController: NSObject, NSWindowDelegate {
 
         configurePanel()
         setupContentView()
+        observeScreenChanges()
         applySettings()
-        restoreOrDefaultPosition(for: initialRect.size)
+
+        if settings.displayMode == .dynamicIsland {
+            positionDynamicIsland(expanded: false)
+        } else {
+            restoreOrDefaultPosition(for: initialRect.size)
+        }
     }
 
     private func configurePanel() {
@@ -104,8 +128,12 @@ public final class FloatingPanelController: NSObject, NSWindowDelegate {
             bridge: bridge,
             settings: settings,
             dragSession: dragSession,
+            notchStore: notchStore,
             onContentSizeChange: { [weak self] newSize in
-                self?.updateContentSize(newSize)
+                self?.updateDesktopContentSize(newSize)
+            },
+            onDynamicIslandExpansionChange: { [weak self] expanded in
+                self?.handleDynamicIslandExpansion(expanded)
             }
         )
         let hosting = FirstMouseHostingView(rootView: rootView)
@@ -115,7 +143,48 @@ public final class FloatingPanelController: NSObject, NSWindowDelegate {
         self.hostingView = hosting
     }
 
+    private func observeScreenChanges() {
+        screenObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.notchStore.refresh()
+                if self.settings.displayMode == .dynamicIsland {
+                    self.positionDynamicIsland(expanded: self.isDynamicIslandExpanded)
+                }
+            }
+        }
+    }
+
     public func applySettings() {
+        let previousMode = lastDisplayMode
+        let currentMode = settings.displayMode
+        lastDisplayMode = currentMode
+
+        if currentMode == .dynamicIsland {
+            notchStore.refresh()
+            panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+
+            if previousMode != .dynamicIsland {
+                isDynamicIslandExpanded = false
+            }
+            positionDynamicIsland(expanded: isDynamicIslandExpanded)
+
+            if isCurrentlyShown {
+                panel.orderFrontRegardless()
+            }
+            return
+        }
+
+        // Non-island desktop/floating modes (Vinyl & Minimal Card)
+        islandShrinkWorkItem?.cancel()
+        islandShrinkWorkItem = nil
+        isDynamicIslandExpanded = false
+
         switch settings.windowLayer {
         case .desktop:
             let desktopLevel = Int(CGWindowLevelForKey(.desktopIconWindow)) + 1
@@ -128,6 +197,10 @@ public final class FloatingPanelController: NSObject, NSWindowDelegate {
                 panel.orderFrontRegardless()
             }
         }
+
+        if previousMode == .dynamicIsland {
+            restoreOrDefaultPosition(for: lastDesktopContentSize)
+        }
     }
 
     public func setVisible(_ visible: Bool) {
@@ -137,7 +210,11 @@ public final class FloatingPanelController: NSObject, NSWindowDelegate {
         let gen = visibilityGeneration
 
         if visible {
-            if settings.windowLayer == .floating {
+            if settings.displayMode == .dynamicIsland {
+                notchStore.refresh()
+                positionDynamicIsland(expanded: isDynamicIslandExpanded)
+                panel.orderFrontRegardless()
+            } else if settings.windowLayer == .floating {
                 panel.orderFrontRegardless()
             } else {
                 panel.orderFront(nil)
@@ -162,18 +239,84 @@ public final class FloatingPanelController: NSObject, NSWindowDelegate {
     }
 
     public func resetPosition() {
+        if settings.displayMode == .dynamicIsland {
+            notchStore.refresh()
+            positionDynamicIsland(expanded: isDynamicIslandExpanded)
+            return
+        }
         settings.savedWindowTopLeft = nil
         restoreOrDefaultPosition(for: panel.frame.size)
     }
 
-    private func updateContentSize(_ newSize: CGSize) {
+    // MARK: - Dynamic Island Frame Management
+
+    private func handleDynamicIslandExpansion(_ expanded: Bool) {
+        guard settings.displayMode == .dynamicIsland else { return }
+        islandShrinkWorkItem?.cancel()
+        islandShrinkWorkItem = nil
+        isDynamicIslandExpanded = expanded
+
+        if expanded {
+            // Immediately expand panel canvas so the SwiftUI spring animates smoothly with zero clipping.
+            positionDynamicIsland(expanded: true)
+        } else {
+            // Wait for the collapse spring to settle before shrinking panel frame so below-notch clicks pass through.
+            let item = DispatchWorkItem { [weak self] in
+                Task { @MainActor [weak self] in
+                    guard let self, self.settings.displayMode == .dynamicIsland, !self.isDynamicIslandExpanded else { return }
+                    self.positionDynamicIsland(expanded: false)
+                }
+            }
+            islandShrinkWorkItem = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.42, execute: item)
+        }
+    }
+
+    private func positionDynamicIsland(expanded: Bool) {
+        let metrics = notchStore.metrics
+        let screenFrame = metrics.screenFrame
+        let hasActiveLyric = settings.showLyrics && bridge.currentLyricLine != nil
+        let hasTranslation = settings.showBilingualLyrics && (bridge.currentLyricLine?.translation?.isEmpty == false)
+
+        let width: CGFloat
+        let height: CGFloat
+
+        if expanded {
+            width = max(448, metrics.notchWidth + 248)
+            let baseTop = metrics.hasHardwareNotch ? max(metrics.notchHeight - 6, 22) : 14
+            let lyricExtra: CGFloat = hasActiveLyric ? (hasTranslation ? 44 : 28) : 0
+            height = baseTop + 162 + lyricExtra
+        } else {
+            let baseCollapsedWidth: CGFloat = metrics.hasHardwareNotch ? (metrics.notchWidth + 112) : 264
+            let baseCollapsedHeight: CGFloat = max(metrics.notchHeight, 33) + 12
+            if hasActiveLyric {
+                width = max(baseCollapsedWidth, 380)
+                height = baseCollapsedHeight + (hasTranslation ? 48 : 32)
+            } else {
+                width = baseCollapsedWidth
+                height = baseCollapsedHeight
+            }
+        }
+
+        let originX = round(screenFrame.midX - width / 2)
+        let originY = screenFrame.maxY - height
+
+        isProgrammaticFrameUpdate = true
+        panel.setFrame(NSRect(x: originX, y: originY, width: width, height: height), display: true, animate: false)
+        isProgrammaticFrameUpdate = false
+    }
+
+    // MARK: - Desktop / Floating Frame Management
+
+    private func updateDesktopContentSize(_ newSize: CGSize) {
+        guard settings.displayMode != .dynamicIsland else { return }
         guard newSize.width > 10, newSize.height > 10 else { return }
         let roundedSize = CGSize(width: ceil(newSize.width), height: ceil(newSize.height))
-        guard abs(roundedSize.width - lastContentSize.width) > 0.5 ||
-              abs(roundedSize.height - lastContentSize.height) > 0.5 else {
+        guard abs(roundedSize.width - lastDesktopContentSize.width) > 0.5 ||
+              abs(roundedSize.height - lastDesktopContentSize.height) > 0.5 else {
             return
         }
-        lastContentSize = roundedSize
+        lastDesktopContentSize = roundedSize
 
         // Anchor top-left corner so expanding lyrics or toggling modes never drifts downward.
         let currentFrame = panel.frame
@@ -196,7 +339,6 @@ public final class FloatingPanelController: NSObject, NSWindowDelegate {
             panel.setFrame(NSRect(origin: clamped, size: size), display: true)
         } else if let screen = NSScreen.main ?? NSScreen.screens.first {
             let visible = screen.visibleFrame
-            // Tasteful default placement: bottom-left desktop corner with breathing margin.
             let x = visible.minX + 36
             let y = visible.minY + 42
             panel.setFrame(NSRect(x: x, y: y, width: size.width, height: size.height), display: true)
@@ -226,7 +368,7 @@ public final class FloatingPanelController: NSObject, NSWindowDelegate {
     // MARK: - NSWindowDelegate
 
     public func windowDidMove(_ notification: Notification) {
-        guard !isProgrammaticFrameUpdate else { return }
+        guard !isProgrammaticFrameUpdate, settings.displayMode != .dynamicIsland else { return }
         let frame = panel.frame
         settings.savedWindowTopLeft = CGPoint(x: frame.minX, y: frame.maxY)
     }

@@ -41,21 +41,23 @@ struct MenuBarView: View {
             }
         }
 
-        // Widget Size
-        Picker("尺寸缩放", selection: $settings.widgetSize) {
-            ForEach(WidgetSize.allCases, id: \.self) { size in
-                Text(size.title).tag(size)
+        // Widget Size (desktop/floating modes)
+        if settings.displayMode != .dynamicIsland {
+            Picker("尺寸缩放", selection: $settings.widgetSize) {
+                ForEach(WidgetSize.allCases, id: \.self) { size in
+                    Text(size.title).tag(size)
+                }
             }
-        }
 
-        // Window Layer
-        Picker("窗口层级", selection: $settings.windowLayer) {
-            ForEach(WindowLayerMode.allCases, id: \.self) { layer in
-                Text(layer.title).tag(layer)
+            // Window Layer
+            Picker("窗口层级", selection: $settings.windowLayer) {
+                ForEach(WindowLayerMode.allCases, id: \.self) { layer in
+                    Text(layer.title).tag(layer)
+                }
             }
-        }
 
-        Toggle("锁定位置", isOn: $settings.isPositionLocked)
+            Toggle("锁定位置", isOn: $settings.isPositionLocked)
+        }
 
         Divider()
 

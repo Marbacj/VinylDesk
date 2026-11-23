@@ -5,7 +5,7 @@
 <h1 align="center">VinylDesk</h1>
 
 <p align="center">
-  <strong>Turn Apple Music into a tactile vinyl ornament &amp; minimal desktop widget for macOS.</strong>
+  <strong>Turn Apple Music into a tactile vinyl ornament, minimal frosted card, or MacBook Dynamic Island.</strong>
 </p>
 
 <p align="center">
@@ -37,9 +37,10 @@
 
 ## ✨ Highlights
 
-### 💿 Dual Aesthetic Modes (1-Click Switch)
+### 💿 Three Aesthetic Modes (1-Click Switch)
 - **Vinyl Record Ornament** — A physical album sleeve with a half-exposed spinning vinyl disc (realistic micro-grooves, fixed specular light sheen, rotating center label). When playing, the vinyl glides smoothly out of the sleeve and spins; when paused, it coasts naturally to a stop at its exact angle and tucks back slightly. Pure art at rest—track details & controls appear only on hover.
 - **Minimal Frosted Card** — Native `NSVisualEffectView` horizontal card tinted with an ambient glow extracted from your current album cover. Features smooth marquee scrolling for long titles, an ultra-thin scrubbable progress bar, and hover-revealed playback controls.
+- **Dynamic Island (Notch Mode)** — Fuses seamlessly with the MacBook Pro/Air hardware notch (or top center bezel on non-notch displays) with mini album art + live tinted audio waveform bars at rest, floating cinema subtitle below, and a silky spring expansion on hover with full scrubbable player controls.
 
 ### 🎬 Cinema-Style Synced Lyrics
 - **Frameless Subtitle Aesthetic** — Floating lyrics beneath the vinyl with layered adaptive shadows (crisp over both light and dark wallpapers), plus switchable **Ambient Cover Glow** and **Frosted Pill** styles.

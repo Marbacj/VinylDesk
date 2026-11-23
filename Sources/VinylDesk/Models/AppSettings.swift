@@ -5,11 +5,13 @@ import SwiftUI
 public enum DisplayMode: String, CaseIterable, Sendable {
     case vinyl
     case minimalCard
+    case dynamicIsland
 
     public var title: String {
         switch self {
         case .vinyl: return "黑胶唱片摆件"
         case .minimalCard: return "极简桌面小挂件"
+        case .dynamicIsland: return "灵动岛"
         }
     }
 
@@ -17,11 +19,16 @@ public enum DisplayMode: String, CaseIterable, Sendable {
         switch self {
         case .vinyl: return "opticaldisc"
         case .minimalCard: return "rectangle.inset.filled"
+        case .dynamicIsland: return "capsule.tophalf.filled"
         }
     }
 
-    public var toggled: DisplayMode {
-        self == .vinyl ? .minimalCard : .vinyl
+    public var nextMode: DisplayMode {
+        switch self {
+        case .vinyl: return .minimalCard
+        case .minimalCard: return .dynamicIsland
+        case .dynamicIsland: return .vinyl
+        }
     }
 }
 

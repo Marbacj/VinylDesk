@@ -63,7 +63,7 @@ struct VinylRecordView: View {
     let bridge: AppleMusicBridge
     let settings: AppSettings
     let dragSession: WindowDragSession
-    let onToggleMode: () -> Void
+    let onSelectMode: (DisplayMode) -> Void
 
     @State private var isHovered: Bool = false
     @State private var spinDriver = VinylSpinDriver()
@@ -214,18 +214,32 @@ struct VinylRecordView: View {
             .allowsHitTesting(false)
 
             VStack(spacing: 0) {
-                // Top-right quick mode switch button
-                HStack {
+                // Top-right quick mode switch buttons (Card / Dynamic Island)
+                HStack(spacing: 5 * scale) {
                     Spacer()
-                    Button(action: onToggleMode) {
+                    Button {
+                        onSelectMode(.minimalCard)
+                    } label: {
                         Image(systemName: "rectangle.inset.filled")
-                            .font(.system(size: 11 * scale, weight: .semibold))
+                            .font(.system(size: 10.5 * scale, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.92))
-                            .frame(width: 24 * scale, height: 24 * scale)
+                            .frame(width: 23 * scale, height: 23 * scale)
                             .background(.ultraThinMaterial.opacity(0.85), in: Circle())
                     }
                     .buttonStyle(.plain)
                     .help("切换至极简桌面小挂件")
+
+                    Button {
+                        onSelectMode(.dynamicIsland)
+                    } label: {
+                        Image(systemName: "capsule.tophalf.filled")
+                            .font(.system(size: 10.5 * scale, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.92))
+                            .frame(width: 23 * scale, height: 23 * scale)
+                            .background(.ultraThinMaterial.opacity(0.85), in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("切换至灵动岛")
                 }
                 .padding(8 * scale)
 

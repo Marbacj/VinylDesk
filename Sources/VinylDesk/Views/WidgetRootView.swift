@@ -5,7 +5,9 @@ struct WidgetRootView: View {
     let bridge: AppleMusicBridge
     let settings: AppSettings
     let dragSession: WindowDragSession
+    let notchStore: NotchMetricsStore
     let onContentSizeChange: (CGSize) -> Void
+    let onDynamicIslandExpansionChange: (Bool) -> Void
 
     var body: some View {
         Group {
@@ -15,12 +17,14 @@ struct WidgetRootView: View {
                     bridge: bridge,
                     settings: settings,
                     dragSession: dragSession,
-                    onToggleMode: {
-                        withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) {
-                            settings.displayMode = .minimalCard
-                        }
+                    onSelectMode: { mode in
+                        switchMode(to: mode)
                     }
                 )
+                .fixedSize()
+                .contentShape(Rectangle())
+                .gesture(windowDragGesture)
+                .background(sizeReporter)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
 
             case .minimalCard:
@@ -28,50 +32,54 @@ struct WidgetRootView: View {
                     bridge: bridge,
                     settings: settings,
                     dragSession: dragSession,
-                    onToggleMode: {
-                        withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) {
-                            settings.displayMode = .vinyl
-                        }
+                    onSelectMode: { mode in
+                        switchMode(to: mode)
                     }
                 )
+                .fixedSize()
+                .contentShape(Rectangle())
+                .gesture(windowDragGesture)
+                .background(sizeReporter)
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
+
+            case .dynamicIsland:
+                DynamicIslandView(
+                    bridge: bridge,
+                    settings: settings,
+                    metrics: notchStore.metrics,
+                    onExpansionChange: onDynamicIslandExpansionChange,
+                    onSelectMode: { mode in
+                        switchMode(to: mode)
+                    }
+                )
+                .transition(.opacity)
             }
         }
-        .fixedSize()
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 3)
-                .onChanged { _ in
-                    dragSession.handleDragChanged()
-                }
-                .onEnded { _ in
-                    dragSession.handleDragEnded()
-                }
-        )
-        .background(
-            GeometryReader { geo in
-                Color.clear
-                    .onAppear {
-                        onContentSizeChange(geo.size)
-                    }
-                    .onChange(of: geo.size) { _, newSize in
-                        onContentSizeChange(newSize)
-                    }
-            }
-        )
         .contextMenu {
-            Button(settings.displayMode == .vinyl ? "切换至极简桌面小挂件" : "切换至黑胶唱片摆件") {
-                settings.displayMode = settings.displayMode.toggled
+            Menu("显示形态") {
+                ForEach(DisplayMode.allCases, id: \.self) { mode in
+                    Button {
+                        switchMode(to: mode)
+                    } label: {
+                        if settings.displayMode == mode {
+                            Label(mode.title, systemImage: "checkmark")
+                        } else {
+                            Text(mode.title)
+                        }
+                    }
+                }
             }
 
-            Divider()
+            if settings.displayMode != .dynamicIsland {
+                Divider()
 
-            Button(settings.windowLayer == .desktop ? "切换为悬浮置顶" : "切换为贴桌面层") {
-                settings.windowLayer = (settings.windowLayer == .desktop) ? .floating : .desktop
-            }
+                Button(settings.windowLayer == .desktop ? "切换为悬浮置顶" : "切换为贴桌面层") {
+                    settings.windowLayer = (settings.windowLayer == .desktop) ? .floating : .desktop
+                }
 
-            Button(settings.isPositionLocked ? "解锁位置" : "锁定位置") {
-                settings.isPositionLocked.toggle()
+                Button(settings.isPositionLocked ? "解锁位置" : "锁定位置") {
+                    settings.isPositionLocked.toggle()
+                }
             }
 
             Divider()
@@ -121,6 +129,34 @@ struct WidgetRootView: View {
             Button("打开 Apple Music") {
                 bridge.openAppleMusic()
             }
+        }
+    }
+
+    private var windowDragGesture: some Gesture {
+        DragGesture(minimumDistance: 3)
+            .onChanged { _ in
+                dragSession.handleDragChanged()
+            }
+            .onEnded { _ in
+                dragSession.handleDragEnded()
+            }
+    }
+
+    private var sizeReporter: some View {
+        GeometryReader { geo in
+            Color.clear
+                .onAppear {
+                    onContentSizeChange(geo.size)
+                }
+                .onChange(of: geo.size) { _, newSize in
+                    onContentSizeChange(newSize)
+                }
+        }
+    }
+
+    private func switchMode(to mode: DisplayMode) {
+        withAnimation(.spring(response: 0.36, dampingFraction: 0.84)) {
+            settings.displayMode = mode
         }
     }
 }

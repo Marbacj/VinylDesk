@@ -44,9 +44,13 @@ public final class AppCoordinator {
     private func observeChanges() {
         guard isObserving else { return }
         withObservationTracking {
+            _ = settings.displayMode
             _ = settings.windowLayer
             _ = settings.isPositionLocked
+            _ = settings.showLyrics
+            _ = settings.showBilingualLyrics
             _ = bridge.shouldShowWidget
+            _ = bridge.currentLyricLine
         } onChange: { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self, self.isObserving else { return }
