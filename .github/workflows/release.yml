@@ -1,0 +1,39 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Unit Tests
+        run: swift test --disable-sandbox
+
+      - name: Build VinylDesk.app
+        run: |
+          chmod +x scripts/build-app.sh
+          ./scripts/build-app.sh
+
+      - name: Package Release Archive
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cd build
+          ditto -c -k --sequesterRsrc --keepParent VinylDesk.app VinylDesk-macOS.zip
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/VinylDesk-macOS.zip
+          generate_release_notes: true

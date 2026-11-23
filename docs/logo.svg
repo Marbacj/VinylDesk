@@ -1,0 +1,22 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="12" y1="12" x2="116" y2="116" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#27272E"/>
+      <stop offset="100%" stop-color="#0F0F14"/>
+    </linearGradient>
+    <linearGradient id="label" x1="48" y1="48" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FA576B"/>
+      <stop offset="100%" stop-color="#D92957"/>
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="26" fill="url(#bg)"/>
+  <rect x="8.5" y="8.5" width="111" height="111" rx="25.5" stroke="white" stroke-opacity="0.12"/>
+  <circle cx="64" cy="64" r="42" fill="#0B0B0D"/>
+  <circle cx="64" cy="64" r="38" stroke="white" stroke-opacity="0.10" stroke-width="0.75"/>
+  <circle cx="64" cy="64" r="34" stroke="white" stroke-opacity="0.06" stroke-width="0.75"/>
+  <circle cx="64" cy="64" r="30" stroke="white" stroke-opacity="0.12" stroke-width="0.75"/>
+  <circle cx="64" cy="64" r="26" stroke="white" stroke-opacity="0.06" stroke-width="0.75"/>
+  <circle cx="64" cy="64" r="22" stroke="white" stroke-opacity="0.10" stroke-width="0.75"/>
+  <circle cx="64" cy="64" r="16" fill="url(#label)"/>
+  <circle cx="64" cy="64" r="3.2" fill="#151519" stroke="white" stroke-opacity="0.3" stroke-width="0.8"/>
+</svg>
